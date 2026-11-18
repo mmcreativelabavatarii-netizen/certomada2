@@ -1,0 +1,1451 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CertFlow Pro — Tự động hóa Tạo & Xuất Certificate hàng loạt</title>
+    
+    <!-- Google Fonts hỗ trợ tiếng Việt đầy đủ -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;600;700;800&family=Montserrat:wght@400;600;700;800&family=Open+Sans:wght@400;600;700&family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,600&family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        display: ['Manrope', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#eff6ff',
+                            100: '#dbeafe',
+                            500: '#3b82f6',
+                            600: '#146dff',
+                            700: '#1d4ed8',
+                            900: '#0f172a',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Thư viện xử lý Excel (SheetJS), PDF (jsPDF), nén file (JSZip) & Google Identity Services -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="bg-slate-50 text-slate-900 font-sans antialiased min-h-screen flex flex-col">
+
+    <!-- Top Navigation Header -->
+    <header class="bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-30 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl bg-brand-600 flex items-center justify-center shadow-lg shadow-brand-600/30">
+                    <i data-lucide="award" class="w-5 h-5 text-white"></i>
+                </div>
+                <div>
+                    <h1 class="font-display font-bold text-lg tracking-tight leading-none">CertFlow <span class="text-brand-500">Pro</span></h1>
+                    <p class="text-[11px] text-slate-400 mt-0.5">Tự động hóa xuất PDF & đồng bộ Google Drive</p>
+                </div>
+            </div>
+
+            <!-- Trạng thái bước thực hiện (Stepper) -->
+            <nav class="hidden md:flex items-center gap-2 text-xs font-medium">
+                <a href="#step-1" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 text-white border border-slate-700">
+                    <span class="w-5 h-5 rounded-full bg-brand-600 text-white flex items-center justify-center text-[11px] font-bold">1</span>
+                    Mẫu & Chữ
+                </a>
+                <i data-lucide="chevron-right" class="w-4 h-4 text-slate-600"></i>
+                <a href="#step-2" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-300 transition">
+                    <span class="w-5 h-5 rounded-full bg-slate-700 text-slate-300 flex items-center justify-center text-[11px] font-bold">2</span>
+                    Dữ liệu Excel
+                </a>
+                <i data-lucide="chevron-right" class="w-4 h-4 text-slate-600"></i>
+                <a href="#step-3" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-300 transition">
+                    <span class="w-5 h-5 rounded-full bg-slate-700 text-slate-300 flex items-center justify-center text-[11px] font-bold">3</span>
+                    Xuất PDF
+                </a>
+                <i data-lucide="chevron-right" class="w-4 h-4 text-slate-600"></i>
+                <a href="#step-4" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-300 transition">
+                    <span class="w-5 h-5 rounded-full bg-slate-700 text-slate-300 flex items-center justify-center text-[11px] font-bold">4</span>
+                    Google Drive & Link
+                </a>
+            </nav>
+
+            <!-- Nút cấu hình Google Drive API nhanh -->
+            <button onclick="openConfigModal()" class="flex items-center gap-2 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 px-3.5 py-2 rounded-xl border border-slate-700 transition">
+                <span id="googleStatusDot" class="w-2 h-2 rounded-full bg-amber-400"></span>
+                <span id="googleHeaderBtnText">Cấu hình Google Drive</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Toast Notification Container (Thay thế hoàn toàn alert/confirm) -->
+    <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2.5 max-w-sm w-full pointer-events-none"></div>
+
+    <!-- Main Workspace -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-8">
+
+        <!-- =====================================================================
+             BƯỚC 1: THIẾT LẬP MẪU CERTIFICATE & ĐỊNH DẠNG CHỮ TRỰC QUAN
+             ===================================================================== -->
+        <section id="step-1" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            <div class="px-6 py-4 border-b border-slate-100 bg-slate-50/70 flex flex-wrap items-center justify-between gap-4">
+                <div class="flex items-center gap-3">
+                    <span class="w-7 h-7 rounded-lg bg-brand-600 text-white font-bold text-sm flex items-center justify-center shadow-sm">1</span>
+                    <div>
+                        <h2 class="font-display font-bold text-base text-slate-900">Thiết lập Mẫu Certificate & Định dạng Chữ</h2>
+                        <p class="text-xs text-slate-500">Tải lên ảnh phôi chứng nhận (PNG/JPG) và kéo thả trực tiếp chữ trên khung xem trước để căn chỉnh vị trí</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <label class="cursor-pointer inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold shadow-sm transition">
+                        <i data-lucide="upload" class="w-4 h-4"></i>
+                        <span>Tải lên Mẫu Certificate</span>
+                        <input type="file" id="templateUploadInput" accept="image/png, image/jpeg, image/jpg" class="hidden">
+                    </label>
+                    <button onclick="resetToDefaultTemplate()" class="px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-600 text-xs font-medium transition" title="Dùng lại mẫu mặc định">
+                        Mẫu mặc định
+                    </button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-12">
+                <!-- Cột Trái (7 cols): Live Canvas Preview tương tác kéo thả -->
+                <div class="lg:col-span-7 p-6 bg-slate-100/80 border-b lg:border-b-0 lg:border-r border-slate-200 flex flex-col items-center justify-center">
+                    <div class="w-full flex items-center justify-between mb-3 text-xs text-slate-500">
+                        <span class="flex items-center gap-1.5 font-medium text-slate-700">
+                            <i data-lucide="mouse-pointer-click" class="w-3.5 h-3.5 text-brand-600"></i>
+                            Mẹo: Nhấn & kéo trực tiếp tên trên ảnh để đổi vị trí
+                        </span>
+                        <span id="canvasResolutionLabel" class="font-mono bg-white px-2 py-0.5 rounded border border-slate-200 text-[11px]">1600 × 1131 px</span>
+                    </div>
+
+                    <!-- Khung chứa Canvas Responsive -->
+                    <div id="canvasWrapper" class="relative w-full rounded-xl overflow-hidden shadow-lg border border-slate-300 bg-white select-none">
+                        <canvas id="previewCanvas" class="w-full h-auto block cursor-move"></canvas>
+                    </div>
+
+                    <!-- Thanh xem thử dữ liệu dòng đang chọn -->
+                    <div class="w-full mt-3 flex flex-wrap items-center justify-between gap-2 bg-white px-4 py-2.5 rounded-xl border border-slate-200 text-xs">
+                        <div class="flex items-center gap-2 text-slate-600">
+                            <i data-lucide="eye" class="w-4 h-4 text-brand-600"></i>
+                            <span>Đang hiển thị mẫu:</span>
+                            <strong id="activePreviewPerson" class="text-slate-900">NGUYỄN VĂN A — CÔNG TY TNHH CÔNG NGHỆ ABC</strong>
+                        </div>
+                        <button onclick="resetSamplePreview()" class="text-brand-600 hover:underline font-medium">Về dữ liệu mẫu</button>
+                    </div>
+                </div>
+
+                <!-- Cột Phải (5 cols): Bảng điều khiển định dạng 2 trường (Tên khách hàng & Tên công ty) -->
+                <div class="lg:col-span-5 p-6 space-y-5 bg-white">
+                    <!-- Tab chọn trường cần chỉnh sửa -->
+                    <div>
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Chọn đối tượng chữ cần tùy chỉnh</label>
+                        <div class="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-xl">
+                            <button id="tabFieldName" onclick="selectConfigField('name')" class="py-2 px-3 rounded-lg text-xs font-bold bg-white text-brand-600 shadow-sm transition flex items-center justify-center gap-1.5">
+                                <i data-lucide="user" class="w-3.5 h-3.5"></i>
+                                Tên khách hàng
+                            </button>
+                            <button id="tabFieldCompany" onclick="selectConfigField('company')" class="py-2 px-3 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition flex items-center justify-center gap-1.5">
+                                <i data-lucide="building-2" class="w-3.5 h-3.5"></i>
+                                Tên công ty
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Nội dung xem thử nhanh -->
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1.5">Nội dung xem thử trên mẫu</label>
+                        <input type="text" id="sampleTextInput" oninput="updateFieldConfig('sampleText', this.value)" class="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition">
+                    </div>
+
+                    <!-- Vị trí tọa độ X & Y (%) -->
+                    <div class="grid grid-cols-2 gap-4 pt-1">
+                        <div class="bg-slate-50 p-3 rounded-xl border border-slate-200/80">
+                            <div class="flex justify-between items-center mb-1.5">
+                                <label class="text-xs font-semibold text-slate-700">Vị trí ngang (X %)</label>
+                                <input type="number" id="posXNum" min="0" max="100" step="0.5" oninput="updateFieldConfig('x', parseFloat(this.value))" class="w-16 text-right text-xs font-mono font-semibold bg-white border border-slate-300 rounded-md px-1.5 py-0.5">
+                            </div>
+                            <input type="range" id="posXRange" min="0" max="100" step="0.5" oninput="updateFieldConfig('x', parseFloat(this.value))" class="w-full accent-brand-600 cursor-pointer">
+                        </div>
+
+                        <div class="bg-slate-50 p-3 rounded-xl border border-slate-200/80">
+                            <div class="flex justify-between items-center mb-1.5">
+                                <label class="text-xs font-semibold text-slate-700">Vị trí dọc (Y %)</label>
+                                <input type="number" id="posYNum" min="0" max="100" step="0.5" oninput="updateFieldConfig('y', parseFloat(this.value))" class="w-16 text-right text-xs font-mono font-semibold bg-white border border-slate-300 rounded-md px-1.5 py-0.5">
+                            </div>
+                            <input type="range" id="posYRange" min="0" max="100" step="0.5" oninput="updateFieldConfig('y', parseFloat(this.value))" class="w-full accent-brand-600 cursor-pointer">
+                        </div>
+                    </div>
+
+                    <!-- Font chữ & Độ đậm -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 mb-1.5">Phông chữ (Font)</label>
+                            <select id="fontFamilySelect" onchange="updateFieldConfig('fontFamily', this.value)" class="w-full px-3 py-2 text-xs font-medium rounded-xl border border-slate-300 bg-white focus:ring-2 focus:ring-brand-500 outline-none">
+                                <option value="Montserrat">Montserrat (Hiện đại)</option>
+                                <option value="Playfair Display">Playfair Display (Trang trọng)</option>
+                                <option value="Manrope">Manrope (Doanh nghiệp)</option>
+                                <option value="Roboto">Roboto (Tiêu chuẩn)</option>
+                                <option value="Open Sans">Open Sans (Thanh lịch)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 mb-1.5">Độ đậm nét</label>
+                            <select id="fontWeightSelect" onchange="updateFieldConfig('fontWeight', this.value)" class="w-full px-3 py-2 text-xs font-medium rounded-xl border border-slate-300 bg-white focus:ring-2 focus:ring-brand-500 outline-none">
+                                <option value="400">Thường (Regular)</option>
+                                <option value="600">Vừa (SemiBold)</option>
+                                <option value="700">Đậm (Bold)</option>
+                                <option value="800">Rất đậm (ExtraBold)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Kích thước chữ & Màu sắc -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 mb-1.5">Cỡ chữ (px theo ảnh gốc)</label>
+                            <div class="flex items-center gap-2">
+                                <input type="range" id="fontSizeRange" min="14" max="150" step="1" oninput="updateFieldConfig('fontSize', parseInt(this.value))" class="flex-1 accent-brand-600 cursor-pointer">
+                                <input type="number" id="fontSizeNum" min="10" max="250" oninput="updateFieldConfig('fontSize', parseInt(this.value))" class="w-16 text-center text-xs font-mono font-semibold border border-slate-300 rounded-lg py-1.5">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 mb-1.5">Màu chữ</label>
+                            <div class="flex items-center gap-2">
+                                <input type="color" id="colorPicker" oninput="updateFieldConfig('color', this.value)" class="w-9 h-9 rounded-lg border border-slate-300 cursor-pointer p-0.5 bg-white">
+                                <input type="text" id="colorHexInput" oninput="updateFieldConfig('color', this.value)" class="flex-1 px-2.5 py-1.5 text-xs font-mono uppercase rounded-lg border border-slate-300">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Căn lề & Tự động viết hoa -->
+                    <div class="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100">
+                        <div class="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+                            <button type="button" id="alignLeftBtn" onclick="updateFieldConfig('align', 'left')" class="p-2 rounded-lg text-slate-600 hover:bg-white transition" title="Căn trái">
+                                <i data-lucide="align-left" class="w-4 h-4"></i>
+                            </button>
+                            <button type="button" id="alignCenterBtn" onclick="updateFieldConfig('align', 'center')" class="p-2 rounded-lg bg-white text-brand-600 shadow-sm transition" title="Căn giữa">
+                                <i data-lucide="align-center" class="w-4 h-4"></i>
+                            </button>
+                            <button type="button" id="alignRightBtn" onclick="updateFieldConfig('align', 'right')" class="p-2 rounded-lg text-slate-600 hover:bg-white transition" title="Căn phải">
+                                <i data-lucide="align-right" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+
+                        <label class="inline-flex items-center gap-2 cursor-pointer select-none text-xs font-semibold text-slate-700 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200">
+                            <input type="checkbox" id="uppercaseCheckbox" onchange="updateFieldConfig('uppercase', this.checked)" class="w-4 h-4 rounded text-brand-600 focus:ring-brand-500">
+                            <span>Tự động IN HOA</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- =====================================================================
+             BƯỚC 2 & BƯỚC 3 & BƯỚC 4: DỮ LIỆU EXCEL, XUẤT PDF & ĐỒNG BỘ GOOGLE DRIVE
+             ===================================================================== -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+            <!-- Cột Trái (4 cols): Upload Excel & Điều khiển Xuất PDF + Google Drive -->
+            <div class="lg:col-span-4 space-y-6">
+
+                <!-- BƯỚC 2: TẢI LÊN DỮ LIỆU EXCEL -->
+                <section id="step-2" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
+                    <div class="flex items-center gap-3">
+                        <span class="w-7 h-7 rounded-lg bg-brand-600 text-white font-bold text-sm flex items-center justify-center">2</span>
+                        <div>
+                            <h2 class="font-display font-bold text-base text-slate-900">Tải lên Dữ liệu Excel</h2>
+                            <p class="text-xs text-slate-500">Gồm 2 cột: <strong>Tên khách hàng</strong> & <strong>Tên công ty</strong></p>
+                        </div>
+                    </div>
+
+                    <div class="border-2 border-dashed border-slate-300 hover:border-brand-500 rounded-2xl p-5 text-center transition bg-slate-50/50">
+                        <i data-lucide="file-spreadsheet" class="w-9 h-9 text-emerald-600 mx-auto mb-2"></i>
+                        <p class="text-xs font-semibold text-slate-800 mb-1">Chọn file Excel (.xlsx, .xls, .csv)</p>
+                        <p class="text-[11px] text-slate-500 mb-3">Hệ thống tự động đọc danh sách và tạo chứng nhận</p>
+                        <div class="flex flex-col sm:flex-row items-center justify-center gap-2">
+                            <label class="w-full sm:w-auto cursor-pointer inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold transition">
+                                <i data-lucide="upload-cloud" class="w-4 h-4"></i>
+                                <span>Tải file Excel lên</span>
+                                <input type="file" id="excelUploadInput" accept=".xlsx, .xls, .csv" class="hidden">
+                            </label>
+                            <button onclick="downloadSampleExcel()" class="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition">
+                                <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                                <span>File mẫu</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="excelSummaryBadge" class="hidden items-center justify-between px-3.5 py-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs">
+                        <span class="flex items-center gap-2 font-semibold">
+                            <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-600"></i>
+                            <span id="excelFileNameText">danh_sach.xlsx</span>
+                        </span>
+                        <span id="excelRowCountBadge" class="font-bold bg-emerald-600 text-white px-2 py-0.5 rounded-md">0 dòng</span>
+                    </div>
+                </section>
+
+                <!-- BƯỚC 3: TẠO & TẢI XUỐNG PDF HÀNG LOẠT -->
+                <section id="step-3" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
+                    <div class="flex items-center gap-3">
+                        <span class="w-7 h-7 rounded-lg bg-brand-600 text-white font-bold text-sm flex items-center justify-center">3</span>
+                        <div>
+                            <h2 class="font-display font-bold text-base text-slate-900">Tạo & Tải xuống PDF</h2>
+                            <p class="text-xs text-slate-500">Đặt tên tự động theo <code>[Tên khách hàng].pdf</code></p>
+                        </div>
+                    </div>
+
+                    <div class="space-y-2.5">
+                        <button id="btnGenerateAllPdf" onclick="generateAllCertificatesPDF()" disabled class="w-full py-2.5 px-4 rounded-xl bg-brand-600 hover:bg-brand-700 disabled:bg-slate-200 disabled:text-slate-400 text-white text-xs font-bold shadow-sm transition flex items-center justify-center gap-2">
+                            <i data-lucide="sparkles" class="w-4 h-4"></i>
+                            <span>Tạo tất cả Certificate (PDF)</span>
+                        </button>
+
+                        <button id="btnDownloadBatchZip" onclick="downloadBatchZip()" disabled class="w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:bg-slate-100 disabled:text-slate-400 text-white text-xs font-bold transition flex items-center justify-center gap-2">
+                            <i data-lucide="archive" class="w-4 h-4"></i>
+                            <span>Tải xuống hàng loạt PDF (ZIP)</span>
+                        </button>
+                    </div>
+
+                    <!-- Thanh tiến trình tạo PDF -->
+                    <div id="pdfProgressBox" class="hidden space-y-1.5 pt-1">
+                        <div class="flex justify-between text-[11px] font-semibold text-slate-600">
+                            <span id="pdfProgressLabel">Đang khởi tạo PDF...</span>
+                            <span id="pdfProgressPercent">0%</span>
+                        </div>
+                        <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                            <div id="pdfProgressBar" class="h-full bg-brand-600 transition-all duration-200" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- BƯỚC 4: ĐỒNG BỘ GOOGLE DRIVE & XUẤT LINK EXCEL -->
+                <section id="step-4" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <span class="w-7 h-7 rounded-lg bg-brand-600 text-white font-bold text-sm flex items-center justify-center">4</span>
+                            <div>
+                                <h2 class="font-display font-bold text-base text-slate-900">Google Drive & Xuất Link</h2>
+                                <p class="text-xs text-slate-500">Tạo thư mục, upload PDF & xuất file Excel link</p>
+                            </div>
+                        </div>
+                        <button onclick="openConfigModal()" class="text-xs font-semibold text-brand-600 hover:underline">Cài đặt API</button>
+                    </div>
+
+                    <!-- Trạng thái kết nối tài khoản Google -->
+                    <div class="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-2">
+                        <div class="flex items-center gap-2.5 min-w-0">
+                            <div class="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center shrink-0">
+                                <svg class="w-4 h-4" viewBox="0 0 24 24">
+                                    <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"/>
+                                    <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.11-6.72-4.96H1.29v3.14C3.26 21.3 7.37 24 12 24z"/>
+                                    <path fill="#FBBC05" d="M5.28 14.24c-.24-.72-.38-1.49-.38-2.24s.14-1.52.38-2.24V6.62H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.38l3.99-3.14z"/>
+                                    <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.37 0 3.26 2.7 1.29 6.62l3.99 3.14c.95-2.85 3.6-4.96 6.72-4.96z"/>
+                                </svg>
+                            </div>
+                            <div class="truncate">
+                                <p id="driveAuthStatusTitle" class="text-xs font-bold text-slate-800 truncate">Chưa kết nối Google Drive</p>
+                                <p id="driveAuthStatusSub" class="text-[11px] text-slate-500 truncate">Cần đăng nhập để tạo folder & upload</p>
+                            </div>
+                        </div>
+                        <button id="btnConnectGoogle" onclick="connectGoogleDrive()" class="shrink-0 px-3 py-1.5 rounded-lg bg-white hover:bg-slate-100 border border-slate-300 text-xs font-bold text-slate-800 shadow-sm transition">
+                            Kết nối
+                        </button>
+                    </div>
+
+                    <!-- Nhập tên Folder Google Drive -->
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1.5">Tên thư mục (Folder) mới trên Google Drive</label>
+                        <div class="relative">
+                            <i data-lucide="folder-plus" class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
+                            <input type="text" id="driveFolderNameInput" placeholder="VD: Certificate Hội Thảo 2026" value="Certificates_Export_2026" class="w-full pl-9 pr-3.5 py-2 text-xs font-medium rounded-xl border border-slate-300 focus:ring-2 focus:ring-brand-500 outline-none">
+                        </div>
+                    </div>
+
+                    <!-- Nút tạo folder & upload tự động -->
+                    <div class="space-y-2.5">
+                        <button id="btnUploadToDrive" onclick="createFolderAndUploadAll()" disabled class="w-full py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 text-white text-xs font-bold shadow-sm transition flex items-center justify-center gap-2">
+                            <i data-lucide="cloud-upload" class="w-4 h-4"></i>
+                            <span>Tạo Folder & Tự động Upload PDF</span>
+                        </button>
+
+                        <!-- Link mở nhanh Folder trên Drive sau khi tạo -->
+                        <div id="createdFolderBanner" class="hidden p-2.5 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-between text-xs">
+                            <span class="font-semibold text-blue-900 flex items-center gap-1.5">
+                                <i data-lucide="folder-check" class="w-4 h-4 text-blue-600"></i>
+                                Đã tạo thư mục Drive
+                            </span>
+                            <a id="createdFolderLink" href="#" target="_blank" class="font-bold text-blue-700 hover:underline flex items-center gap-1">
+                                Mở Folder <i data-lucide="external-link" class="w-3 h-3"></i>
+                            </a>
+                        </div>
+
+                        <!-- Nút xuất Excel chứa 3 cột: Tên khách hàng, Tên công ty, Cert link -->
+                        <button id="btnExportDriveExcel" onclick="exportExcelWithDriveLinks()" disabled class="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-100 disabled:text-slate-400 text-white text-xs font-bold shadow-sm transition flex items-center justify-center gap-2">
+                            <i data-lucide="file-down" class="w-4 h-4"></i>
+                            <span>Xuất Excel chứa Link Drive</span>
+                        </button>
+                    </div>
+                </section>
+
+            </div>
+
+            <!-- Cột Phải (8 cols): Bảng danh sách khách hàng, trạng thái PDF & Link Google Drive -->
+            <div class="lg:col-span-8">
+                <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-full">
+                    <div class="px-6 py-4 border-b border-slate-100 bg-slate-50/70 flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <h3 class="font-display font-bold text-base text-slate-900">Danh sách Chứng nhận & Trạng thái Xử lý</h3>
+                            <p class="text-xs text-slate-500">Nhấn vào từng dòng để xem trước chứng nhận của khách hàng đó trên khung ảnh</p>
+                        </div>
+                        <div class="flex items-center gap-2 text-xs">
+                            <span id="statsPdfReady" class="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 font-semibold">PDF: 0/0</span>
+                            <span id="statsDriveUploaded" class="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 font-semibold">Drive: 0/0</span>
+                        </div>
+                    </div>
+
+                    <!-- Bảng dữ liệu -->
+                    <div class="overflow-x-auto flex-1">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                                    <th class="py-3 px-4 w-12 text-center">#</th>
+                                    <th class="py-3 px-4">Tên khách hàng</th>
+                                    <th class="py-3 px-4">Tên công ty</th>
+                                    <th class="py-3 px-4 text-center">File PDF</th>
+                                    <th class="py-3 px-4">Google Drive Link</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recordsTableBody" class="divide-y divide-slate-100 text-xs">
+                                <!-- Trạng thái rỗng ban đầu -->
+                                <tr>
+                                    <td colspan="5" class="py-16 px-6 text-center text-slate-400">
+                                        <div class="max-w-xs mx-auto space-y-2">
+                                            <i data-lucide="inbox" class="w-10 h-10 mx-auto text-slate-300"></i>
+                                            <p class="font-semibold text-slate-600 text-sm">Chưa có dữ liệu khách hàng</p>
+                                            <p class="text-xs">Hãy tải lên file Excel gồm 2 cột <strong>Tên khách hàng</strong> và <strong>Tên công ty</strong> ở Bước 2 (hoặc tải file mẫu để dùng thử).</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </main>
+
+    <!-- =====================================================================
+         MODAL CẤU HÌNH GOOGLE CLOUD CLIENT ID
+         ===================================================================== -->
+    <div id="configModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+        <div class="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                        <i data-lucide="key-round" class="w-4 h-4"></i>
+                    </div>
+                    <h3 class="font-display font-bold text-base text-slate-900">Cấu hình Google Drive API (OAuth 2.0)</h3>
+                </div>
+                <button onclick="closeConfigModal()" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+
+            <div class="p-6 space-y-4 text-xs text-slate-600">
+                <div class="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 space-y-1.5">
+                    <p class="font-bold flex items-center gap-1.5">
+                        <i data-lucide="info" class="w-4 h-4 text-amber-600"></i>
+                        Hướng dẫn lấy Google OAuth Client ID (miễn phí):
+                    </p>
+                    <ol class="list-decimal list-inside space-y-1 text-[11px] leading-relaxed">
+                        <li>Truy cập <strong>Google Cloud Console</strong> → Tạo Project & bật <strong>Google Drive API</strong>.</li>
+                        <li>Vào <strong>Credentials</strong> → Create Credentials → <strong>OAuth client ID</strong> (Loại: <em>Web application</em>).</li>
+                        <li>Thêm domain hiện tại của trang web vào mục <strong>Authorized JavaScript origins</strong>, sau đó dán Client ID vào ô bên dưới.</li>
+                    </ol>
+                </div>
+
+                <div>
+                    <label class="block font-bold text-slate-800 mb-1.5">Google Web Client ID</label>
+                    <input type="text" id="googleClientIdInput" placeholder="1234567890-xxxxxxxx.apps.googleusercontent.com" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-mono text-xs focus:ring-2 focus:ring-brand-500 outline-none">
+                </div>
+
+                <div class="flex items-center justify-between pt-2">
+                    <span class="text-[11px] text-slate-400">Quyền yêu cầu: <code>drive.file</code> (chỉ quản lý file do app tạo)</span>
+                    <div class="flex items-center gap-2">
+                        <button onclick="closeConfigModal()" class="px-4 py-2 rounded-xl border border-slate-200 font-semibold text-slate-600 hover:bg-slate-50">Đóng</button>
+                        <button onclick="saveGoogleClientId()" class="px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold shadow-sm">Lưu & Kết nối</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- =====================================================================
+         JAVASCRIPT LOGIC TOÀN DIỆN
+         ===================================================================== -->
+    <script>
+        // Khởi tạo biểu tượng Lucide
+        lucide.createIcons();
+
+        // ---------------------------------------------------------------------
+        // 1. TRẠNG THÁI ỨNG DỤNG (STATE)
+        // ---------------------------------------------------------------------
+        const state = {
+            templateImg: null,
+            templateWidth: 1600,
+            templateHeight: 1131,
+            activeField: 'name', // 'name' | 'company'
+            fields: {
+                name: {
+                    label: 'Tên khách hàng',
+                    sampleText: 'NGUYỄN VĂN A',
+                    x: 50,
+                    y: 48,
+                    fontSize: 64,
+                    fontFamily: 'Montserrat',
+                    fontWeight: '700',
+                    color: '#0f172a',
+                    align: 'center',
+                    uppercase: true
+                },
+                company: {
+                    label: 'Tên công ty',
+                    sampleText: 'CÔNG TY TNHH CÔNG NGHỆ ABC',
+                    x: 50,
+                    y: 57,
+                    fontSize: 32,
+                    fontFamily: 'Manrope',
+                    fontWeight: '600',
+                    color: '#146dff',
+                    align: 'center',
+                    uppercase: true
+                }
+            },
+            records: [], // { id, name, company, pdfBlob, pdfFileName, driveFileId, driveLink, driveStatus }
+            selectedRecordIndex: -1, // -1 nghĩa là dùng sampleText mặc định
+            isDragging: false,
+            dragTarget: null,
+            google: {
+                clientId: localStorage.getItem('certflow_google_client_id') || '',
+                accessToken: null,
+                tokenClient: null,
+                folderId: null,
+                folderUrl: null
+            }
+        };
+
+        // ---------------------------------------------------------------------
+        // 2. KHỞI TẠO MẪU CERTIFICATE MẶC ĐỊNH (ĐẸP, SẮC NÉT, SẴN SÀNG DÙNG NGAY)
+        // ---------------------------------------------------------------------
+        function createDefaultTemplateImage() {
+            return new Promise((resolve) => {
+                const offCanvas = document.createElement('canvas');
+                offCanvas.width = 1600;
+                offCanvas.height = 1131;
+                const ctx = offCanvas.getContext('2d');
+
+                // Nền kem sang trọng
+                ctx.fillStyle = '#fcfbf7';
+                ctx.fillRect(0, 0, 1600, 1131);
+
+                // Khung viền đôi Navy & Vàng đồng
+                ctx.strokeStyle = '#0f172a';
+                ctx.lineWidth = 14;
+                ctx.strokeRect(48, 48, 1504, 1035);
+
+                ctx.strokeStyle = '#c59b27';
+                ctx.lineWidth = 4;
+                ctx.strokeRect(72, 72, 1456, 987);
+
+                // Họa tiết góc trang trí
+                const corners = [[72, 72], [1528, 72], [72, 1059], [1528, 1059]];
+                ctx.fillStyle = '#c59b27';
+                corners.forEach(([cx, cy]) => {
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, 14, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+
+                // Tiêu đề chứng nhận
+                ctx.textAlign = 'center';
+                ctx.fillStyle = '#c59b27';
+                ctx.font = '700 24px Montserrat, sans-serif';
+                ctx.fillText('CHỨNG NHẬN HOÀN THÀNH CHƯƠNG TRÌNH', 800, 210);
+
+                ctx.fillStyle = '#0f172a';
+                ctx.font = '800 74px "Playfair Display", serif';
+                ctx.fillText('CERTIFICATE', 800, 305);
+
+                ctx.fillStyle = '#64748b';
+                ctx.font = '600 22px Manrope, sans-serif';
+                ctx.fillText('TRÂN TRỌNG CHỨNG NHẬN ÔNG / BÀ', 800, 405);
+
+                // Đường kẻ phân cách tinh tế dưới tên & công ty
+                ctx.strokeStyle = '#cbd5e1';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(420, 575);
+                ctx.lineTo(1180, 575);
+                ctx.stroke();
+
+                ctx.fillStyle = '#475569';
+                ctx.font = '400 22px Manrope, sans-serif';
+                ctx.fillText('Đã tham dự và hoàn thành xuất sắc khóa đào tạo chuyên sâu dành cho doanh nghiệp.', 800, 745);
+
+                // Chữ ký mẫu dưới cùng
+                ctx.fillStyle = '#0f172a';
+                ctx.font = '700 20px Montserrat, sans-serif';
+                ctx.fillText('BAN TỔ CHỨC CHƯƠNG TRÌNH', 480, 930);
+                ctx.fillText('GIÁM ĐỐC ĐIỀU HÀNH', 1120, 930);
+
+                ctx.strokeStyle = '#94a3b8';
+                ctx.beginPath();
+                ctx.moveTo(340, 890);
+                ctx.lineTo(620, 890);
+                ctx.moveTo(980, 890);
+                ctx.lineTo(1260, 890);
+                ctx.stroke();
+
+                const img = new Image();
+                img.onload = () => resolve(img);
+                img.src = offCanvas.toDataURL('image/png');
+            });
+        }
+
+        async function resetToDefaultTemplate() {
+            const img = await createDefaultTemplateImage();
+            state.templateImg = img;
+            state.templateWidth = img.width;
+            state.templateHeight = img.height;
+            document.getElementById('canvasResolutionLabel').textContent = `${img.width} × ${img.height} px`;
+            renderPreviewCanvas();
+            showToast('Đã khôi phục mẫu Certificate mặc định', 'info');
+        }
+
+        // ---------------------------------------------------------------------
+        // 3. VẼ CANVAS PREVIEW & XUẤT CANVAS CHẤT LƯỢNG CAO
+        // ---------------------------------------------------------------------
+        function getDisplayTexts() {
+            if (state.selectedRecordIndex >= 0 && state.records[state.selectedRecordIndex]) {
+                const rec = state.records[state.selectedRecordIndex];
+                return {
+                    name: rec.name || '',
+                    company: rec.company || ''
+                };
+            }
+            return {
+                name: state.fields.name.sampleText,
+                company: state.fields.company.sampleText
+            };
+        }
+
+        function drawCertificateOnCanvas(targetCanvas, nameText, companyText, showSelectionGuide = false) {
+            if (!state.templateImg) return;
+            targetCanvas.width = state.templateWidth;
+            targetCanvas.height = state.templateHeight;
+            const ctx = targetCanvas.getContext('2d');
+
+            // 1. Vẽ ảnh nền mẫu certificate
+            ctx.clearRect(0, 0, targetCanvas.width, targetCanvas.height);
+            ctx.drawImage(state.templateImg, 0, 0, targetCanvas.width, targetCanvas.height);
+
+            // 2. Hàm vẽ từng trường văn bản
+            const renderTextField = (fieldKey, rawText) => {
+                const cfg = state.fields[fieldKey];
+                const text = cfg.uppercase ? (rawText || '').toUpperCase() : (rawText || '');
+                if (!text.trim()) return;
+
+                const pxX = (cfg.x / 100) * targetCanvas.width;
+                const pxY = (cfg.y / 100) * targetCanvas.height;
+
+                ctx.save();
+                ctx.font = `${cfg.fontWeight} ${cfg.fontSize}px "${cfg.fontFamily}", sans-serif`;
+                ctx.fillStyle = cfg.color;
+                ctx.textAlign = cfg.align;
+                ctx.textBaseline = 'middle';
+                ctx.fillText(text, pxX, pxY);
+
+                // Vẽ khung nhận diện nét đứt khi đang xem trước & chỉnh sửa
+                if (showSelectionGuide && state.activeField === fieldKey) {
+                    const metrics = ctx.measureText(text);
+                    const textWidth = metrics.width;
+                    const textHeight = cfg.fontSize * 1.25;
+                    let boxX = pxX;
+                    if (cfg.align === 'center') boxX = pxX - textWidth / 2;
+                    else if (cfg.align === 'right') boxX = pxX - textWidth;
+
+                    ctx.strokeStyle = '#146dff';
+                    ctx.lineWidth = Math.max(2, targetCanvas.width / 500);
+                    ctx.setLineDash([8, 6]);
+                    ctx.strokeRect(boxX - 14, pxY - textHeight / 2, textWidth + 28, textHeight);
+                }
+                ctx.restore();
+            };
+
+            renderTextField('name', nameText);
+            renderTextField('company', companyText);
+        }
+
+        function renderPreviewCanvas() {
+            const canvas = document.getElementById('previewCanvas');
+            const texts = getDisplayTexts();
+            drawCertificateOnCanvas(canvas, texts.name, texts.company, true);
+
+            const labelEl = document.getElementById('activePreviewPerson');
+            labelEl.textContent = `${texts.name || '(Trống)'} — ${texts.company || '(Không có công ty)'}`;
+        }
+
+        // ---------------------------------------------------------------------
+        // 4. TƯƠNG TÁC KÉO THẢ TRỰC TIẾP TRÊN CANVAS & BẢNG ĐIỀU KHIỂN
+        // ---------------------------------------------------------------------
+        function selectConfigField(fieldKey) {
+            state.activeField = fieldKey;
+            const cfg = state.fields[fieldKey];
+
+            // Cập nhật giao diện Tab
+            const tabName = document.getElementById('tabFieldName');
+            const tabCompany = document.getElementById('tabFieldCompany');
+            if (fieldKey === 'name') {
+                tabName.className = 'py-2 px-3 rounded-lg text-xs font-bold bg-white text-brand-600 shadow-sm transition flex items-center justify-center gap-1.5';
+                tabCompany.className = 'py-2 px-3 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition flex items-center justify-center gap-1.5';
+            } else {
+                tabCompany.className = 'py-2 px-3 rounded-lg text-xs font-bold bg-white text-brand-600 shadow-sm transition flex items-center justify-center gap-1.5';
+                tabName.className = 'py-2 px-3 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition flex items-center justify-center gap-1.5';
+            }
+
+            // Đồng bộ giá trị vào các ô input
+            document.getElementById('sampleTextInput').value = cfg.sampleText;
+            document.getElementById('posXRange').value = cfg.x;
+            document.getElementById('posXNum').value = cfg.x;
+            document.getElementById('posYRange').value = cfg.y;
+            document.getElementById('posYNum').value = cfg.y;
+            document.getElementById('fontFamilySelect').value = cfg.fontFamily;
+            document.getElementById('fontWeightSelect').value = cfg.fontWeight;
+            document.getElementById('fontSizeRange').value = cfg.fontSize;
+            document.getElementById('fontSizeNum').value = cfg.fontSize;
+            document.getElementById('colorPicker').value = cfg.color;
+            document.getElementById('colorHexInput').value = cfg.color;
+            document.getElementById('uppercaseCheckbox').checked = cfg.uppercase;
+
+            ['left', 'center', 'right'].forEach(align => {
+                const btn = document.getElementById(`align${align.charAt(0).toUpperCase() + align.slice(1)}Btn`);
+                if (cfg.align === align) {
+                    btn.className = 'p-2 rounded-lg bg-white text-brand-600 shadow-sm transition';
+                } else {
+                    btn.className = 'p-2 rounded-lg text-slate-600 hover:bg-white transition';
+                }
+            });
+
+            renderPreviewCanvas();
+        }
+
+        function updateFieldConfig(prop, value) {
+            if (Number.isNaN(value)) return;
+            const cfg = state.fields[state.activeField];
+            cfg[prop] = value;
+
+            // Đồng bộ 2 chiều giữa slider & ô nhập số
+            if (prop === 'x') {
+                document.getElementById('posXRange').value = value;
+                document.getElementById('posXNum').value = value;
+            } else if (prop === 'y') {
+                document.getElementById('posYRange').value = value;
+                document.getElementById('posYNum').value = value;
+            } else if (prop === 'fontSize') {
+                document.getElementById('fontSizeRange').value = value;
+                document.getElementById('fontSizeNum').value = value;
+            } else if (prop === 'color') {
+                if (/^#[0-9A-Fa-f]{6}$/.test(value)) {
+                    document.getElementById('colorPicker').value = value;
+                    document.getElementById('colorHexInput').value = value;
+                }
+            } else if (prop === 'align') {
+                selectConfigField(state.activeField);
+                return;
+            }
+
+            renderPreviewCanvas();
+        }
+
+        // Kéo thả chuột / cảm ứng trực tiếp trên Canvas
+        function initCanvasDragEvents() {
+            const canvas = document.getElementById('previewCanvas');
+
+            const getPointerPercent = (clientX, clientY) => {
+                const rect = canvas.getBoundingClientRect();
+                const xPct = Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100));
+                const yPct = Math.max(0, Math.min(100, ((clientY - rect.top) / rect.height) * 100));
+                return { xPct: Math.round(xPct * 10) / 10, yPct: Math.round(yPct * 10) / 10 };
+            };
+
+            const handleStart = (clientX, clientY) => {
+                const { xPct, yPct } = getPointerPercent(clientX, clientY);
+                // Xác định người dùng nhấn gần "Tên khách hàng" hay "Tên công ty" hơn
+                const distName = Math.hypot(xPct - state.fields.name.x, yPct - state.fields.name.y);
+                const distCompany = Math.hypot(xPct - state.fields.company.x, yPct - state.fields.company.y);
+
+                const nearest = distCompany < distName ? 'company' : 'name';
+                if (state.activeField !== nearest) {
+                    selectConfigField(nearest);
+                }
+                state.isDragging = true;
+                state.dragTarget = nearest;
+            };
+
+            const handleMove = (clientX, clientY) => {
+                if (!state.isDragging || !state.dragTarget) return;
+                const { xPct, yPct } = getPointerPercent(clientX, clientY);
+                state.fields[state.dragTarget].x = xPct;
+                state.fields[state.dragTarget].y = yPct;
+                selectConfigField(state.dragTarget);
+            };
+
+            const handleEnd = () => {
+                state.isDragging = false;
+                state.dragTarget = null;
+            };
+
+            canvas.addEventListener('mousedown', (e) => handleStart(e.clientX, e.clientY));
+            window.addEventListener('mousemove', (e) => handleMove(e.clientX, e.clientY));
+            window.addEventListener('mouseup', handleEnd);
+
+            canvas.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 1) {
+                    handleStart(e.touches[0].clientX, e.touches[0].clientY);
+                }
+            }, { passive: true });
+            window.addEventListener('touchmove', (e) => {
+                if (state.isDragging && e.touches.length === 1) {
+                    handleMove(e.touches[0].clientX, e.touches[0].clientY);
+                }
+            }, { passive: true });
+            window.addEventListener('touchend', handleEnd);
+        }
+
+        // Xử lý Upload ảnh mẫu Certificate
+        document.getElementById('templateUploadInput').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const img = new Image();
+                img.onload = () => {
+                    state.templateImg = img;
+                    state.templateWidth = img.width;
+                    state.templateHeight = img.height;
+                    document.getElementById('canvasResolutionLabel').textContent = `${img.width} × ${img.height} px`;
+                    renderPreviewCanvas();
+                    showToast(`Đã tải mẫu "${file.name}" (${img.width}×${img.height}px)`, 'success');
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+
+        // ---------------------------------------------------------------------
+        // 5. XỬ LÝ EXCEL (ĐỌC DỮ LIỆU & TẢI FILE MẪU)
+        // ---------------------------------------------------------------------
+        function downloadSampleExcel() {
+            const sampleData = [
+                { 'Tên khách hàng': 'Nguyễn Minh Khôi', 'Tên công ty': 'Công ty Cổ phần Công nghệ FPT' },
+                { 'Tên khách hàng': 'Trần Thị Thu Hà', 'Tên công ty': 'Tập đoàn Viễn thông Viettel' },
+                { 'Tên khách hàng': 'Lê Hoàng Nam', 'Tên công ty': 'Công ty TNHH Giải pháp Số VNG' },
+                { 'Tên khách hàng': 'Phạm Ngọc Mai Anh', 'Tên công ty': 'Ngân hàng TMCP Kỹ Thương Việt Nam' },
+                { 'Tên khách hàng': 'Đặng Quốc Bảo', 'Tên công ty': 'Công ty TNHH Thương mại Dịch vụ ABC' }
+            ];
+
+            const worksheet = XLSX.utils.json_to_sheet(sampleData);
+            worksheet['!cols'] = [{ wch: 28 }, { wch: 38 }];
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, 'DanhSachKhachHang');
+            XLSX.writeFile(workbook, 'Mau_Danh_Sach_Certificate.xlsx');
+            showToast('Đã tải xuống file Excel mẫu!', 'success');
+        }
+
+        document.getElementById('excelUploadInput').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const data = new Uint8Array(event.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    const rows = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+
+                    if (!rows || rows.length === 0) {
+                        showToast('File Excel không có dữ liệu!', 'error');
+                        return;
+                    }
+
+                    // Ánh xạ thông minh 2 cột Tên khách hàng & Tên công ty (không phân biệt hoa thường/khoảng trắng)
+                    const parsedRecords = rows.map((row, idx) => {
+                        const keys = Object.keys(row);
+                        const nameKey = keys.find(k => k.toLowerCase().includes('khách') || k.toLowerCase().includes('tên') || k.toLowerCase().includes('name')) || keys[0];
+                        const companyKey = keys.find(k => k !== nameKey && (k.toLowerCase().includes('công ty') || k.toLowerCase().includes('company') || k.toLowerCase().includes('đơn vị'))) || keys[1];
+
+                        const customerName = String(row[nameKey] || '').trim();
+                        const companyName = companyKey ? String(row[companyKey] || '').trim() : '';
+
+                        return {
+                            id: idx + 1,
+                            name: customerName,
+                            company: companyName,
+                            pdfBlob: null,
+                            pdfFileName: sanitizeFileName(customerName || `Certificate_${idx + 1}`) + '.pdf',
+                            driveFileId: null,
+                            driveLink: '',
+                            driveStatus: 'pending' // pending | uploading | done | error
+                        };
+                    }).filter(item => item.name !== '');
+
+                    if (parsedRecords.length === 0) {
+                        showToast('Không tìm thấy dữ liệu hợp lệ ở cột Tên khách hàng.', 'error');
+                        return;
+                    }
+
+                    state.records = parsedRecords;
+                    state.selectedRecordIndex = 0;
+
+                    // Cập nhật UI
+                    document.getElementById('excelSummaryBadge').classList.remove('hidden');
+                    document.getElementById('excelSummaryBadge').classList.add('flex');
+                    document.getElementById('excelFileNameText').textContent = file.name;
+                    document.getElementById('excelRowCountBadge').textContent = `${parsedRecords.length} khách hàng`;
+
+                    document.getElementById('btnGenerateAllPdf').disabled = false;
+                    document.getElementById('btnDownloadBatchZip').disabled = true;
+                    document.getElementById('btnUploadToDrive').disabled = true;
+                    document.getElementById('btnExportDriveExcel').disabled = true;
+
+                    renderPreviewCanvas();
+                    renderRecordsTable();
+                    updateStatsCounters();
+                    showToast(`Đã nhập thành công ${parsedRecords.length} khách hàng từ Excel!`, 'success');
+                } catch (err) {
+                    console.error(err);
+                    showToast('Lỗi đọc file Excel. Vui lòng kiểm tra định dạng file.', 'error');
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        });
+
+        function sanitizeFileName(name) {
+            return name
+                .replace(/[\\/:*?"<>|]/g, '')
+                .replace(/\s+/g, ' ')
+                .trim();
+        }
+
+        function resetSamplePreview() {
+            state.selectedRecordIndex = -1;
+            renderPreviewCanvas();
+            renderRecordsTable();
+        }
+
+        function selectRecordToPreview(index) {
+            state.selectedRecordIndex = index;
+            renderPreviewCanvas();
+            renderRecordsTable();
+        }
+
+        // ---------------------------------------------------------------------
+        // 6. TẠO PDF HÀNG LOẠT & TẢI XUỐNG (ĐƠN LẺ + FILE NÉN ZIP)
+        // ---------------------------------------------------------------------
+        async function createPdfBlobForRecord(record) {
+            const offCanvas = document.createElement('canvas');
+            drawCertificateOnCanvas(offCanvas, record.name, record.company, false);
+
+            const imgData = offCanvas.toDataURL('image/jpeg', 0.95);
+            const orientation = state.templateWidth >= state.templateHeight ? 'landscape' : 'portrait';
+            const { jsPDF } = window.jspdf;
+
+            const pdf = new jsPDF({
+                orientation: orientation,
+                unit: 'px',
+                format: [state.templateWidth, state.templateHeight],
+                compress: true
+            });
+
+            pdf.addImage(imgData, 'JPEG', 0, 0, state.templateWidth, state.templateHeight);
+            return pdf.output('blob');
+        }
+
+        async function generateAllCertificatesPDF() {
+            if (state.records.length === 0) return;
+
+            const btnGen = document.getElementById('btnGenerateAllPdf');
+            const progressBox = document.getElementById('pdfProgressBox');
+            const progressBar = document.getElementById('pdfProgressBar');
+            const progressLabel = document.getElementById('pdfProgressLabel');
+            const progressPercent = document.getElementById('pdfProgressPercent');
+
+            btnGen.disabled = true;
+            progressBox.classList.remove('hidden');
+
+            // Đảm bảo font đã tải xong trước khi render hàng loạt
+            await document.fonts.ready;
+
+            for (let i = 0; i < state.records.length; i++) {
+                const rec = state.records[i];
+                progressLabel.textContent = `Đang tạo PDF (${i + 1}/${state.records.length}): ${rec.name}`;
+                const pct = Math.round(((i + 1) / state.records.length) * 100);
+                progressBar.style.width = `${pct}%`;
+                progressPercent.textContent = `${pct}%`;
+
+                rec.pdfBlob = await createPdfBlobForRecord(rec);
+
+                // Nhường luồng UI mỗi 3 file để trình duyệt luôn mượt mà
+                if (i % 3 === 0) {
+                    await new Promise(r => setTimeout(r, 15));
+                }
+            }
+
+            btnGen.disabled = false;
+            document.getElementById('btnDownloadBatchZip').disabled = false;
+            document.getElementById('btnUploadToDrive').disabled = false;
+
+            renderRecordsTable();
+            updateStatsCounters();
+            showToast(`Hoàn tất tạo ${state.records.length} file Certificate PDF!`, 'success');
+        }
+
+        function downloadSinglePdf(index) {
+            const rec = state.records[index];
+            if (!rec || !rec.pdfBlob) return;
+
+            const url = URL.createObjectURL(rec.pdfBlob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = rec.pdfFileName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        async function downloadBatchZip() {
+            const readyRecords = state.records.filter(r => r.pdfBlob);
+            if (readyRecords.length === 0) {
+                showToast('Vui lòng bấm "Tạo tất cả Certificate (PDF)" trước!', 'error');
+                return;
+            }
+
+            const btnZip = document.getElementById('btnDownloadBatchZip');
+            btnZip.disabled = true;
+            btnZip.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i><span>Đang nén file ZIP...</span>`;
+            lucide.createIcons();
+
+            const zip = new JSZip();
+            const usedNames = new Set();
+
+            readyRecords.forEach((rec) => {
+                let fileName = rec.pdfFileName;
+                // Tránh trùng tên file trong file ZIP nếu có 2 khách hàng trùng tên
+                if (usedNames.has(fileName.toLowerCase())) {
+                    fileName = fileName.replace(/\.pdf$/i, `_${rec.id}.pdf`);
+                }
+                usedNames.add(fileName.toLowerCase());
+                zip.file(fileName, rec.pdfBlob);
+            });
+
+            const zipBlob = await zip.generateAsync({ type: 'blob' });
+            const url = URL.createObjectURL(zipBlob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Certificates_Batch_${new Date().toISOString().slice(0, 10)}.zip`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            btnZip.disabled = false;
+            btnZip.innerHTML = `<i data-lucide="archive" class="w-4 h-4"></i><span>Tải xuống hàng loạt PDF (ZIP)</span>`;
+            lucide.createIcons();
+            showToast(`Đã tải xuống gói ${readyRecords.length} file PDF!`, 'success');
+        }
+
+        // ---------------------------------------------------------------------
+        // 7. TÍCH HỢP GOOGLE DRIVE (TẠO FOLDER, UPLOAD PDF, SET QUYỀN & XUẤT EXCEL LINK)
+        // ---------------------------------------------------------------------
+        function openConfigModal() {
+            document.getElementById('googleClientIdInput').value = state.google.clientId;
+            document.getElementById('configModal').classList.remove('hidden');
+            document.getElementById('configModal').classList.add('flex');
+        }
+
+        function closeConfigModal() {
+            document.getElementById('configModal').classList.add('hidden');
+            document.getElementById('configModal').classList.remove('flex');
+        }
+
+        function saveGoogleClientId() {
+            const val = document.getElementById('googleClientIdInput').value.trim();
+            if (!val) {
+                showToast('Vui lòng nhập Google Web Client ID hợp lệ.', 'error');
+                return;
+            }
+            state.google.clientId = val;
+            localStorage.setItem('certflow_google_client_id', val);
+            closeConfigModal();
+            connectGoogleDrive();
+        }
+
+        function connectGoogleDrive() {
+            if (!state.google.clientId) {
+                openConfigModal();
+                return;
+            }
+
+            if (!window.google || !google.accounts || !google.accounts.oauth2) {
+                showToast('Thư viện Google Identity Services đang tải, vui lòng thử lại sau 2 giây.', 'error');
+                return;
+            }
+
+            try {
+                state.google.tokenClient = google.accounts.oauth2.initTokenClient({
+                    client_id: state.google.clientId,
+                    scope: 'https://www.googleapis.com/auth/drive.file',
+                    callback: (tokenResponse) => {
+                        if (tokenResponse.error) {
+                            showToast(`Lỗi xác thực Google: ${tokenResponse.error}`, 'error');
+                            return;
+                        }
+                        state.google.accessToken = tokenResponse.access_token;
+                        updateGoogleAuthUI(true);
+                        showToast('Đã kết nối thành công với Google Drive!', 'success');
+                    }
+                });
+                state.google.tokenClient.requestAccessToken({ prompt: 'consent' });
+            } catch (err) {
+                console.error(err);
+                showToast('Không thể khởi tạo kết nối Google. Hãy kiểm tra lại Client ID.', 'error');
+            }
+        }
+
+        function updateGoogleAuthUI(isConnected) {
+            const dot = document.getElementById('googleStatusDot');
+            const headerText = document.getElementById('googleHeaderBtnText');
+            const title = document.getElementById('driveAuthStatusTitle');
+            const sub = document.getElementById('driveAuthStatusSub');
+            const btn = document.getElementById('btnConnectGoogle');
+
+            if (isConnected) {
+                dot.className = 'w-2 h-2 rounded-full bg-emerald-400';
+                headerText.textContent = 'Google Drive: Đã kết nối';
+                title.textContent = 'Đã kết nối Google Drive';
+                sub.textContent = 'Sẵn sàng tạo thư mục & tải PDF lên';
+                btn.textContent = 'Đổi tài khoản';
+            } else {
+                dot.className = 'w-2 h-2 rounded-full bg-amber-400';
+                headerText.textContent = 'Cấu hình Google Drive';
+                title.textContent = 'Chưa kết nối Google Drive';
+                sub.textContent = 'Cần đăng nhập để tạo folder & upload';
+                btn.textContent = 'Kết nối';
+            }
+        }
+
+        // Tạo Folder mới trên Google Drive thông qua REST API v3
+        async function createGoogleDriveFolder(folderName) {
+            const metadata = {
+                name: folderName,
+                mimeType: 'application/vnd.google-apps.folder'
+            };
+
+            const res = await fetch('https://www.googleapis.com/drive/v3/files?fields=id,name,webViewLink', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${state.google.accessToken}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(metadata)
+            });
+
+            if (!res.ok) {
+                const errData = await res.json();
+                throw new Error(errData.error?.message || 'Không thể tạo thư mục trên Google Drive');
+            }
+
+            return await res.json();
+        }
+
+        // Upload từng file PDF lên Folder Drive bằng Multipart Upload & mở quyền xem (anyone with link)
+        async function uploadSinglePdfToDrive(record, folderId) {
+            const metadata = {
+                name: record.pdfFileName,
+                parents: [folderId],
+                mimeType: 'application/pdf'
+            };
+
+            const form = new FormData();
+            form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+            form.append('file', record.pdfBlob);
+
+            const uploadRes = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${state.google.accessToken}`
+                },
+                body: form
+            });
+
+            if (!uploadRes.ok) {
+                const errData = await uploadRes.json();
+                throw new Error(errData.error?.message || 'Lỗi tải file lên Drive');
+            }
+
+            const fileData = await uploadRes.json();
+
+            // Cấp quyền xem công khai cho bất kỳ ai có đường dẫn (để khách hàng mở được link từ Excel)
+            await fetch(`https://www.googleapis.com/drive/v3/files/${fileData.id}/permissions`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${state.google.accessToken}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    role: 'reader',
+                    type: 'anyone'
+                })
+            });
+
+            return fileData;
+        }
+
+        async function createFolderAndUploadAll() {
+            const readyRecords = state.records.filter(r => r.pdfBlob);
+            if (readyRecords.length === 0) {
+                showToast('Bạn cần bấm "Tạo tất cả Certificate (PDF)" ở Bước 3 trước khi tải lên Drive!', 'error');
+                return;
+            }
+
+            if (!state.google.accessToken) {
+                showToast('Vui lòng kết nối tài khoản Google Drive trước!', 'info');
+                connectGoogleDrive();
+                return;
+            }
+
+            const folderName = document.getElementById('driveFolderNameInput').value.trim() || `Certificates_${new Date().toISOString().slice(0, 10)}`;
+            const btnUpload = document.getElementById('btnUploadToDrive');
+
+            btnUpload.disabled = true;
+            btnUpload.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i><span>Đang tạo thư mục & tải lên...</span>`;
+            lucide.createIcons();
+
+            try {
+                // 1. Tạo thư mục mới trên Google Drive
+                const folder = await createGoogleDriveFolder(folderName);
+                state.google.folderId = folder.id;
+                state.google.folderUrl = folder.webViewLink || `https://drive.google.com/drive/folders/${folder.id}`;
+
+                const folderBanner = document.getElementById('createdFolderBanner');
+                const folderLink = document.getElementById('createdFolderLink');
+                folderBanner.classList.remove('hidden');
+                folderLink.href = state.google.folderUrl;
+
+                showToast(`Đã tạo thư mục "${folderName}" trên Drive. Đang tải ${readyRecords.length} file PDF lên...`, 'info');
+
+                // 2. Upload lần lượt từng file PDF vào folder vừa tạo
+                for (let i = 0; i < state.records.length; i++) {
+                    const rec = state.records[i];
+                    if (!rec.pdfBlob) continue;
+
+                    rec.driveStatus = 'uploading';
+                    renderRecordsTable();
+
+                    try {
+                        const uploaded = await uploadSinglePdfToDrive(rec, folder.id);
+                        rec.driveFileId = uploaded.id;
+                        rec.driveLink = uploaded.webViewLink || `https://drive.google.com/file/d/${uploaded.id}/view`;
+                        rec.driveStatus = 'done';
+                    } catch (fileErr) {
+                        console.error(fileErr);
+                        rec.driveStatus = 'error';
+                    }
+
+                    renderRecordsTable();
+                    updateStatsCounters();
+                }
+
+                document.getElementById('btnExportDriveExcel').disabled = false;
+                showToast('Hoàn tất tải toàn bộ Certificate lên Google Drive!', 'success');
+            } catch (err) {
+                console.error(err);
+                showToast(`Lỗi Google Drive: ${err.message}`, 'error');
+            } finally {
+                btnUpload.disabled = false;
+                btnUpload.innerHTML = `<i data-lucide="cloud-upload" class="w-4 h-4"></i><span>Tạo Folder & Tự động Upload PDF</span>`;
+                lucide.createIcons();
+            }
+        }
+
+        // Xuất file Excel gồm 3 cột chính xác: Tên khách hàng | Tên công ty | Cert link
+        function exportExcelWithDriveLinks() {
+            if (state.records.length === 0) return;
+
+            const exportRows = state.records.map(rec => ({
+                'Tên khách hàng': rec.name,
+                'Tên công ty': rec.company,
+                'Cert link': rec.driveLink || 'Chưa tải lên'
+            }));
+
+            const worksheet = XLSX.utils.json_to_sheet(exportRows);
+            worksheet['!cols'] = [
+                { wch: 28 },
+                { wch: 36 },
+                { wch: 58 }
+            ];
+
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, 'Certificate_Links');
+
+            const folderName = sanitizeFileName(document.getElementById('driveFolderNameInput').value.trim() || 'Certificates');
+            XLSX.writeFile(workbook, `${folderName}_Drive_Links.xlsx`);
+            showToast('Đã xuất file Excel chứa đầy đủ link Google Drive!', 'success');
+        }
+
+        // ---------------------------------------------------------------------
+        // 8. RENDER BẢNG DANH SÁCH & THỐNG KÊ
+        // ---------------------------------------------------------------------
+        function renderRecordsTable() {
+            const tbody = document.getElementById('recordsTableBody');
+            if (state.records.length === 0) return;
+
+            tbody.innerHTML = state.records.map((rec, idx) => {
+                const isSelected = idx === state.selectedRecordIndex;
+                const rowBg = isSelected ? 'bg-brand-50/70' : 'hover:bg-slate-50';
+
+                // Cột trạng thái PDF
+                let pdfCellHtml = `<span class="inline-flex items-center gap-1 text-slate-400 text-[11px]">Chưa tạo</span>`;
+                if (rec.pdfBlob) {
+                    pdfCellHtml = `
+                        <button onclick="event.stopPropagation(); downloadSinglePdf(${idx})" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-brand-600 hover:text-white text-slate-700 font-semibold text-[11px] transition" title="Tải xuống ${rec.pdfFileName}">
+                            <i data-lucide="download" class="w-3 h-3"></i>
+                            <span>Tải PDF</span>
+                        </button>
+                    `;
+                }
+
+                // Cột trạng thái Google Drive Link
+                let driveCellHtml = `<span class="text-slate-400 text-[11px]">—</span>`;
+                if (rec.driveStatus === 'uploading') {
+                    driveCellHtml = `<span class="inline-flex items-center gap-1.5 text-blue-600 font-semibold text-[11px]"><i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i> Đang tải lên...</span>`;
+                } else if (rec.driveStatus === 'done' && rec.driveLink) {
+                    driveCellHtml = `
+                        <div class="flex items-center gap-2">
+                            <a href="${rec.driveLink}" target="_blank" onclick="event.stopPropagation()" class="inline-flex items-center gap-1 text-emerald-700 hover:underline font-semibold text-[11px] truncate max-w-[180px]">
+                                <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-600 shrink-0"></i>
+                                <span>Mở link Drive</span>
+                            </a>
+                            <button onclick="event.stopPropagation(); copyTextToClipboard('${rec.driveLink}')" class="p-1 rounded hover:bg-slate-200 text-slate-500" title="Sao chép link">
+                                <i data-lucide="copy" class="w-3 h-3"></i>
+                            </button>
+                        </div>
+                    `;
+                } else if (rec.driveStatus === 'error') {
+                    driveCellHtml = `<span class="text-red-600 font-semibold text-[11px]">Lỗi tải lên</span>`;
+                }
+
+                return `
+                    <tr onclick="selectRecordToPreview(${idx})" class="${rowBg} cursor-pointer transition">
+                        <td class="py-3 px-4 text-center font-mono text-slate-400">${rec.id}</td>
+                        <td class="py-3 px-4 font-bold text-slate-900">${escapeHtml(rec.name)}</td>
+                        <td class="py-3 px-4 text-slate-600">${escapeHtml(rec.company || '—')}</td>
+                        <td class="py-3 px-4 text-center">${pdfCellHtml}</td>
+                        <td class="py-3 px-4">${driveCellHtml}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            lucide.createIcons();
+        }
+
+        function updateStatsCounters() {
+            const total = state.records.length;
+            const pdfDone = state.records.filter(r => r.pdfBlob).length;
+            const driveDone = state.records.filter(r => r.driveStatus === 'done').length;
+
+            document.getElementById('statsPdfReady').textContent = `PDF: ${pdfDone}/${total}`;
+            document.getElementById('statsDriveUploaded').textContent = `Drive: ${driveDone}/${total}`;
+        }
+
+        function escapeHtml(str) {
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        function copyTextToClipboard(text) {
+            const tempInput = document.createElement('input');
+            tempInput.value = text;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempInput);
+            showToast('Đã sao chép đường dẫn Google Drive!', 'success');
+        }
+
+        // Hệ thống thông báo Toast góc phải dưới
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+
+            const styles = {
+                success: 'bg-slate-900 text-white border-emerald-500/40',
+                error: 'bg-red-950 text-white border-red-500/50',
+                info: 'bg-slate-900 text-white border-brand-500/40'
+            };
+
+            const icons = {
+                success: `<i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-400 shrink-0"></i>`,
+                error: `<i data-lucide="alert-circle" class="w-4 h-4 text-red-400 shrink-0"></i>`,
+                info: `<i data-lucide="info" class="w-4 h-4 text-brand-400 shrink-0"></i>`
+            };
+
+            toast.className = `pointer-events-auto flex items-center gap-2.5 px-4 py-3 rounded-xl border shadow-xl text-xs font-medium transition-all duration-200 ${styles[type] || styles.info}`;
+            toast.innerHTML = `${icons[type] || icons.info}<span class="leading-snug">${message}</span>`;
+
+            container.appendChild(toast);
+            lucide.createIcons();
+
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateY(8px)';
+                setTimeout(() => toast.remove(), 200);
+            }, 3800);
+        }
+
+        // ---------------------------------------------------------------------
+        // 9. KHỞI CHẠY KHI TẢI TRANG
+        // ---------------------------------------------------------------------
+        window.addEventListener('DOMContentLoaded', async () => {
+            await document.fonts.ready;
+            await resetToDefaultTemplate();
+            selectConfigField('name');
+            initCanvasDragEvents();
+
+            if (state.google.clientId) {
+                document.getElementById('googleHeaderBtnText').textContent = 'Kết nối Google Drive';
+            }
+        });
+    </script>
+</body>
+</html>
